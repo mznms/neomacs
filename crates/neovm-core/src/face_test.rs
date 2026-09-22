@@ -1000,3 +1000,12 @@ fn an_anonymous_plist_realizes_its_underline_color_through_the_palette() {
     let underline = face.underline.enabled().expect("underline enabled");
     assert_eq!(underline.color.and_then(|color| color.terminal), None);
 }
+
+#[test]
+fn gui_colors_share_gnu_numeric_syntax_with_images() {
+    assert_eq!(Color::parse("rgb:1/22/333"), Some(Color::rgb(17, 34, 51)));
+    assert_eq!(Color::parse("rgbi:0.5/0/1"), Some(Color::rgb(128, 0, 255)));
+    for spec in ["#あ", "#12é45", "#ggg", "rgb:1/2", "rgbi:2/0/0"] {
+        assert_eq!(Color::parse(spec), None, "{spec}");
+    }
+}

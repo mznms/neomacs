@@ -5,6 +5,8 @@
 use std::collections::HashMap;
 use std::path::Path;
 
+use neomacs_display_protocol::color_spec::resolve_color;
+
 /// Decode XPM image from in-memory data, returning (width, height, rgba_pixels).
 pub fn decode_xpm_data(data: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
     let strings = extract_strings(data)?;
@@ -211,91 +213,23 @@ fn parse_color_def(rest: &[u8]) -> Option<[u8; 4]> {
         index = end;
     }
     if let Some((_, color)) = best {
-        return Some(parse_color_value(&color));
+        return Some(parse_color_value(&color).unwrap_or([0, 0, 0, 255]));
     }
 
     // Fallback: if only one token after whitespace, treat as color
     if tokens.len() == 1 {
-        return Some(parse_color_value(tokens[0]));
+        return Some(parse_color_value(tokens[0]).unwrap_or([0, 0, 0, 255]));
     }
 
     Some([0, 0, 0, 255]) // default black
 }
 
-/// Parse a color value string into RGBA.
-fn parse_color_value(s: &str) -> [u8; 4] {
-    let s = s.trim();
-
-    // Transparent
+/// Transparency is XPM syntax; all other colors use the face color resolver.
+fn parse_color_value(s: &str) -> Option<[u8; 4]> {
     if s.eq_ignore_ascii_case("none") {
-        return [0, 0, 0, 0];
+        return Some([0, 0, 0, 0]);
     }
-
-    // Hex color
-    if let Some(stripped) = s.strip_prefix('#') {
-        return parse_hex_color(stripped);
-    }
-
-    if let Some((r, g, b)) = neomacs_display_protocol::x11_colors::x11_color_lookup(s) {
-        return [r, g, b, 255];
-    }
-
-    tracing::debug!("XPM: unknown color name '{}', using black", s);
-    [0, 0, 0, 255]
-}
-
-/// Parse hex color string (without '#' prefix).
-fn parse_hex_color(hex: &str) -> [u8; 4] {
-    let len = hex.len();
-    match len {
-        // #RGB
-        3 => {
-            let r = hex_digit(hex.as_bytes()[0]);
-            let g = hex_digit(hex.as_bytes()[1]);
-            let b = hex_digit(hex.as_bytes()[2]);
-            [r << 4 | r, g << 4 | g, b << 4 | b, 255]
-        }
-        // #RRGGBB
-        6 => {
-            let r = hex_byte(&hex[0..2]);
-            let g = hex_byte(&hex[2..4]);
-            let b = hex_byte(&hex[4..6]);
-            [r, g, b, 255]
-        }
-        // #RRRRGGGGBBBB (16-bit per channel)
-        12 => {
-            // Take high byte of each 16-bit channel
-            let r = hex_byte(&hex[0..2]);
-            let g = hex_byte(&hex[4..6]);
-            let b = hex_byte(&hex[8..10]);
-            [r, g, b, 255]
-        }
-        _ => {
-            tracing::debug!("XPM: unsupported hex color length {}: #{}", len, hex);
-            [0, 0, 0, 255]
-        }
-    }
-}
-
-fn hex_digit(c: u8) -> u8 {
-    match c {
-        b'0'..=b'9' => c - b'0',
-        b'a'..=b'f' => c - b'a' + 10,
-        b'A'..=b'F' => c - b'A' + 10,
-        _ => 0,
-    }
-}
-
-fn hex_byte(s: &str) -> u8 {
-    let bytes = s.as_bytes();
-    if bytes.len() >= 2 {
-        hex_digit(bytes[0]) << 4 | hex_digit(bytes[1])
-    } else if bytes.len() == 1 {
-        let d = hex_digit(bytes[0]);
-        d << 4 | d
-    } else {
-        0
-    }
+    resolve_color(s).map(|(r, g, b)| [r, g, b, 255])
 }
 
 #[cfg(test)]

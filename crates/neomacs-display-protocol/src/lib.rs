@@ -7,6 +7,7 @@
 #![allow(clippy::too_many_arguments)]
 
 pub mod clipboard;
+pub mod color_spec;
 pub mod cursor;
 pub mod display_identity;
 pub mod display_scale;

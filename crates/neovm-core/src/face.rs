@@ -209,35 +209,10 @@ impl RealizedColor {
         ((self.r as u32) << 16) | ((self.g as u32) << 8) | (self.b as u32)
     }
 
-    /// Parse a GNU/X11 hex color: `#` followed by 3, 6, 9, or 12 hex digits —
-    /// i.e. 1..=4 hex digits PER CHANNEL (4/8/12/16 bits). Each channel is
-    /// downscaled to 8 bits using its most-significant bits, so the wide forms
-    /// parse correctly instead of being dropped. In particular `#RRRRGGGGBBBB`
-    /// (16-bit channels) is what Emacs' `color-values`/blend math emits — e.g.
-    /// indent-bars' computed bar colors like `#ffff33333333` — and dropping it
-    /// left those faces with no foreground (rendered as the default black).
+    /// Parse 3, 6, 9, or 12 hex digits using GNU's component normalization.
     pub fn from_hex(s: &str) -> Option<Self> {
-        let s = s.strip_prefix('#')?;
-        if s.is_empty() || s.len() % 3 != 0 {
-            return None;
-        }
-        let per = s.len() / 3;
-        if per > 4 {
-            return None;
-        }
-        let bits = 4 * per as u32;
-        let channel = |index: usize| -> Option<u8> {
-            let start = index * per;
-            let raw = u16::from_str_radix(&s[start..start + per], 16).ok()?;
-            Some(if bits >= 8 {
-                // Take the most-significant 8 bits (8/12/16-bit channels).
-                (raw >> (bits - 8)) as u8
-            } else {
-                // 4-bit `#RGB`: replicate the nibble so 0xf -> 0xff (== v*17).
-                ((raw << 4) | raw) as u8
-            })
-        };
-        Some(Color::rgb(channel(0)?, channel(1)?, channel(2)?))
+        s.strip_prefix('#')?;
+        neomacs_display_protocol::color_spec::resolve_color(s).map(|(r, g, b)| Self::rgb(r, g, b))
     }
 
     /// Convert to "#RRGGBB" hex string.
@@ -250,13 +225,10 @@ impl RealizedColor {
         x11_color_lookup(name).map(|(r, g, b)| Color::rgb(r, g, b))
     }
 
-    /// Parse a color spec: hex string or named color.
+    /// Parse a GNU GUI color: #hex, rgb:, rgbi:, or an X11 name.
     pub fn parse(spec: &str) -> Option<Self> {
-        if spec.starts_with('#') {
-            Self::from_hex(spec)
-        } else {
-            Self::from_name(spec)
-        }
+        neomacs_display_protocol::color_spec::resolve_color(spec)
+            .map(|(r, g, b)| Self::rgb(r, g, b))
     }
 }
 

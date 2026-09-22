@@ -58,19 +58,19 @@ static char * test[] = {
 
 #[test]
 fn test_hex_colors() {
-    assert_eq!(parse_hex_color("FF0000"), [255, 0, 0, 255]);
-    assert_eq!(parse_hex_color("00FF00"), [0, 255, 0, 255]);
-    assert_eq!(parse_hex_color("0000FF"), [0, 0, 255, 255]);
-    assert_eq!(parse_hex_color("F00"), [255, 0, 0, 255]);
-    assert_eq!(parse_hex_color("FFFF00000000"), [255, 0, 0, 255]);
+    assert_eq!(parse_color_value("#FF0000"), Some([255, 0, 0, 255]));
+    assert_eq!(parse_color_value("#00FF00"), Some([0, 255, 0, 255]));
+    assert_eq!(parse_color_value("#0000FF"), Some([0, 0, 255, 255]));
+    assert_eq!(parse_color_value("#F00"), Some([255, 0, 0, 255]));
+    assert_eq!(parse_color_value("#FFFF00000000"), Some([255, 0, 0, 255]));
 }
 
 #[test]
 fn test_named_colors() {
-    assert_eq!(parse_color_value("None"), [0, 0, 0, 0]);
-    assert_eq!(parse_color_value("white"), [255, 255, 255, 255]);
-    assert_eq!(parse_color_value("black"), [0, 0, 0, 255]);
-    assert_eq!(parse_color_value("red"), [255, 0, 0, 255]);
+    assert_eq!(parse_color_value("None"), Some([0, 0, 0, 0]));
+    assert_eq!(parse_color_value("white"), Some([255, 255, 255, 255]));
+    assert_eq!(parse_color_value("black"), Some([0, 0, 0, 255]));
+    assert_eq!(parse_color_value("red"), Some([255, 0, 0, 255]));
 }
 
 #[test]
@@ -117,7 +117,7 @@ fn test_named_colors_use_x11_values() {
         ("maroon", [176, 48, 96, 255]),
         ("DarkGoldenrod3", [205, 149, 12, 255]),
     ] {
-        assert_eq!(parse_color_value(name), expected, "{name}");
+        assert_eq!(parse_color_value(name), Some(expected), "{name}");
     }
 }
 
@@ -133,9 +133,8 @@ fn test_additional_named_colors() {
         ("indigo", [75, 0, 130, 255]),
         ("lime", [0, 255, 0, 255]),
         ("darkyellow", [189, 183, 107, 255]),
-        ("unknown-color", [0, 0, 0, 255]),
     ] {
-        assert_eq!(parse_color_value(name), expected, "{name}");
+        assert_eq!(parse_color_value(name), Some(expected), "{name}");
     }
 }
 
@@ -212,4 +211,34 @@ static char * test[] = {
     assert_eq!(&rgba[8..12], &[0, 0, 0, 255]);
     // (1,1) = white
     assert_eq!(&rgba[12..16], &[255, 255, 255, 255]);
+}
+
+#[test]
+fn gnu_numeric_colors_and_invalid_specs() {
+    for spec in [
+        "#123456789",
+        "rgb:123/456/789",
+        "rgb:1/22/333",
+        "rgbi:0.5/0/1",
+    ] {
+        let expected = resolve_color(spec).unwrap();
+        let xpm = format!("! XPM2\n1 1 1 1\nx c {spec}\nx\n");
+        assert_eq!(
+            decode_xpm_data(xpm.as_bytes()).unwrap().2,
+            [expected.0, expected.1, expected.2, 255],
+            "{spec}"
+        );
+    }
+    for spec in [
+        "#ggg",
+        "#12é45",
+        "#1234",
+        "rgb:1/2",
+        "rgbi:2/0/0",
+        "unknown-color",
+    ] {
+        assert_eq!(parse_color_value(spec), None, "{spec}");
+    }
+    assert_eq!(parse_color_value("#123456789"), Some([18, 69, 120, 255]));
+    assert_eq!(parse_color_value("rgbi:0.5/0/1"), Some([128, 0, 255, 255]));
 }
