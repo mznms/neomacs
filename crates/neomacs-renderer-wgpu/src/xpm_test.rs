@@ -1,5 +1,13 @@
 use super::*;
 
+fn decode_xpm_data(data: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
+    super::decode_xpm_data(data, &ImageColorContext::from_pixels(0, 0))
+}
+
+fn parse_color_def(data: &[u8]) -> Option<[u8; 4]> {
+    super::parse_color_def(data, &ImageColorContext::from_pixels(0, 0))
+}
+
 #[test]
 fn test_basic_xpm3() {
     let xpm = br#"/* XPM */
@@ -241,4 +249,33 @@ fn gnu_numeric_colors_and_invalid_specs() {
     }
     assert_eq!(parse_color_value("#123456789"), Some([18, 69, 120, 255]));
     assert_eq!(parse_color_value("rgbi:0.5/0/1"), Some([128, 0, 255, 255]));
+}
+
+#[test]
+fn symbols_override_visual_colors_with_gnu_fallbacks() {
+    let context = ImageColorContext::from_pixels(0xff0000, 0xffffff)
+        .with_frame_foreground(0x123456)
+        .with_xpm_color_symbols(vec![
+            ("accent".into(), "rgb:0/f/0".into()),
+            ("accent".into(), "blue".into()),
+            ("transparent".into(), "None".into()),
+            ("invalid".into(), "not-a-color".into()),
+        ]);
+    let xpm = b"! XPM2\n9 1 8 1\na s accent c red\nb s Accent c blue\nc s transparent c red\nd s invalid c gray60\ne c unknown\nf c #12gg34\ng s accent\nh s invalid c None\nabcdefghi\n";
+    let (_, _, rgba) = super::decode_xpm_data(xpm, &context).unwrap();
+    assert_eq!(
+        rgba,
+        [
+            [0, 255, 0, 255],
+            [0, 0, 255, 255],
+            [0, 0, 0, 0],
+            [153, 153, 153, 255],
+            [18, 52, 86, 255],
+            [18, 52, 86, 255],
+            [0, 255, 0, 255],
+            [0, 0, 0, 0],
+            [18, 52, 86, 255],
+        ]
+        .concat()
+    );
 }

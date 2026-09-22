@@ -68,3 +68,29 @@ fn unresolved_image_color_context_preserves_the_visible_monochrome_fallback() {
     assert_eq!(colors.foreground().rgb24(), 0x00ff_ffff);
     assert_eq!(colors.background().rgb24(), 0x0000_0000);
 }
+
+#[test]
+fn xpm_colors_are_part_of_image_identity_and_survive_serialization() {
+    let base = ImageColorContext::from_pixels(0xff0000, 0xffffff);
+    assert_eq!(base.frame_foreground().rgb24(), 0xff0000);
+    assert_eq!(base.clone().with_frame_foreground(0xff0000), base);
+    let colors = base
+        .clone()
+        .with_frame_foreground(0x123456)
+        .with_xpm_color_symbols(vec![("accent".into(), "gray60".into())]);
+    let identities = std::collections::HashSet::from([
+        base.clone(),
+        base.with_frame_foreground(0x123456),
+        colors.clone(),
+    ]);
+    assert_eq!(identities.len(), 3);
+    let wire = serde_json::to_string(&colors).unwrap();
+    assert_eq!(
+        serde_json::from_str::<ImageColorContext>(&wire).unwrap(),
+        colors
+    );
+    let legacy: ImageColorContext =
+        serde_json::from_str(r#"{"foreground":0,"background":16777215}"#).unwrap();
+    assert_eq!(legacy.frame_foreground().rgb24(), 0);
+    assert!(legacy.xpm_color_symbols().is_empty());
+}

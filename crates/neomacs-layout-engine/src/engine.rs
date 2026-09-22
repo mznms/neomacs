@@ -1571,7 +1571,7 @@ impl LayoutEngine {
 
         evaluator.sync_runtime_faces_for_frame(frame_id);
 
-        let (bootstrap_bg, bootstrap_font_size, window_system, device_scale) = {
+        let (bootstrap_fg, bootstrap_bg, bootstrap_font_size, window_system, device_scale) = {
             let Some(frame) = evaluator.frame_manager().get(frame_id) else {
                 tracing::error!("layout_frame_rust: frame {:?} not found", frame_id);
                 return None;
@@ -1585,6 +1585,7 @@ impl LayoutEngine {
                 .effective_window_system()
                 .and_then(|v| v.as_symbol_name().map(|s| s.to_string()));
             (
+                super::neovm_bridge::frame_foreground_color_pixel(frame, evaluator.face_table()),
                 bootstrap.background,
                 frame.font_pixel_size,
                 ws,
@@ -1633,7 +1634,7 @@ impl LayoutEngine {
         // window geometry use the same default metrics GNU Emacs redisplay does.
         let mut face_resolver = super::neovm_bridge::FaceResolver::new_with_font_sizing(
             evaluator.face_table(),
-            0x00FFFFFF,
+            bootstrap_fg,
             bootstrap_bg,
             bootstrap_font_size,
             window_system.clone(),

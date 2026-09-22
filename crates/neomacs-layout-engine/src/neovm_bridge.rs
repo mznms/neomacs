@@ -1527,7 +1527,7 @@ fn frame_background_color_pixel(frame: &Frame, face_table: &FaceTable) -> u32 {
         .unwrap_or(0x00ffffff)
 }
 
-fn frame_foreground_color_pixel(frame: &Frame, face_table: &FaceTable) -> u32 {
+pub(crate) fn frame_foreground_color_pixel(frame: &Frame, face_table: &FaceTable) -> u32 {
     frame
         .parameter("foreground-color")
         .and_then(|value| parse_color_pixel(&value))
@@ -1894,10 +1894,10 @@ pub fn window_params_from_neovm_with_font_sizing(
     // One authority for the default face's realized pixels, shared with the
     // image builtins so a spec keys the image cache identically from Lisp and
     // from layout (GNU: `lookup_image` via `DEFAULT_FACE_ID`).
-    let (default_fg, default_bg) = face_table.default_face_colors();
+    let (_, default_bg) = face_table.default_face_colors();
     let face_resolver = FaceResolver::new_with_font_sizing(
         face_table,
-        default_fg,
+        frame_foreground_color_pixel(frame, face_table),
         default_bg,
         frame.font_pixel_size,
         window_system,
@@ -2123,6 +2123,7 @@ pub fn window_params_from_neovm_with_font_sizing(
             .filter_map(|v| v.as_int().map(|n| n as i32))
             .collect(),
         default_fg,
+        frame_foreground: frame_foreground_color_pixel(frame, face_table),
         default_bg,
         char_width,
         char_height,
@@ -3994,6 +3995,7 @@ impl UnresolvedFaceComposition {
 /// Replaces the C FFI `face_at_buffer_position()` path for the pure-Rust
 /// backend.
 pub struct FaceResolver {
+    frame_foreground: u32,
     face_table: FaceTable,
     default_face: ResolvedFace,
     /// Window system in use: `None` for TTY, `Some("x")` for X11,
@@ -4040,6 +4042,10 @@ enum BufferBasicFaceLookup {
 }
 
 impl FaceResolver {
+    pub(crate) fn frame_foreground(&self) -> u32 {
+        self.frame_foreground
+    }
+
     fn resolve_face_height(&self, height: &FaceHeight, inherited_size: f32) -> f32 {
         let candidate = match height {
             FaceHeight::Absolute(tenths) => {
@@ -4169,6 +4175,7 @@ impl FaceResolver {
         Self {
             face_table: face_table.clone(),
             default_face: df,
+            frame_foreground: default_fg,
             window_system,
             current_window_parameters: std::cell::RefCell::new(Vec::new()),
             current_window_id: std::cell::Cell::new(None),

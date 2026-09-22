@@ -476,6 +476,24 @@ impl ImageSpecMargins {
     }
 }
 
+/// Bind frame-dependent XPM fallback before the request becomes a cache key.
+pub(crate) fn image_resolve_request_in_frame(
+    spec: &Value,
+    environment: ImageScaleEnvironment,
+    eval: &Context,
+    frame_arg: Option<&Value>,
+) -> Option<ImageResolveRequest> {
+    let defaults = eval.face_table().default_face_colors();
+    let mut request = image_resolve_request_from_spec(spec, environment, defaults)?;
+    let foreground = image_frame_for_arg(eval, frame_arg)
+        .and_then(|frame| frame.parameter("foreground-color"))
+        .and_then(|value| value.as_utf8_str().and_then(crate::face::Color::parse))
+        .map(|color| color.to_pixel())
+        .unwrap_or(defaults.0);
+    request.colors = request.colors.with_frame_foreground(foreground);
+    Some(request)
+}
+
 pub(crate) fn image_resolve_request_from_spec(
     spec: &Value,
     environment: ImageScaleEnvironment,
@@ -548,11 +566,60 @@ pub(crate) fn image_resolve_request_from_spec(
         // resolves through `DEFAULT_FACE_ID` (image.c `lookup_image`). Using
         // zeros here gave the same spec a different key than the one layout
         // builds from the resolved face, so every measured image decoded twice.
-        colors: ImageColorContext::from_pixels(default_colors.0, default_colors.1),
+        colors: image_color_context_from_items(&items, default_colors.0, default_colors.1)?,
         mask: image_mask_policy_from_items(&items),
         frame,
         realization: environment.resolve(scale),
     })
+}
+
+/// Resolve image color properties identically for measurement and redisplay.
+pub fn image_color_context_from_items(
+    items: &[Value],
+    default_fg: u32,
+    default_bg: u32,
+) -> Option<ImageColorContext> {
+    let mut foreground = default_fg;
+    let mut background = default_bg;
+    for pair in items.get(1..)?.chunks_exact(2) {
+        let target = match ImageSpecKey::from_lisp_value(pair[0]) {
+            Some(ImageSpecKey::Foreground) => &mut foreground,
+            Some(ImageSpecKey::Background) => &mut background,
+            _ => continue,
+        };
+        if let Some(color) = pair[1].as_utf8_str().and_then(crate::face::Color::parse) {
+            *target = color.to_pixel();
+        }
+    }
+    Some(
+        ImageColorContext::from_pixels(foreground, background)
+            .with_frame_foreground(default_fg)
+            .with_xpm_color_symbols(image_color_symbols_from_items(items)?),
+    )
+}
+
+/// Copy XPM symbolic replacements out of Lisp before asynchronous decoding.
+/// GNU accepts an alist of (STRING . STRING), including nil.
+fn image_color_symbols_from_items(items: &[Value]) -> Option<Vec<(String, String)>> {
+    let Some(pair) = items
+        .get(1..)?
+        .chunks_exact(2)
+        .find(|pair| ImageSpecKey::from_lisp_value(pair[0]) == Some(ImageSpecKey::ColorSymbols))
+    else {
+        return Some(Vec::new());
+    };
+    list_to_vec(&pair[1])?
+        .into_iter()
+        .map(|entry| {
+            if !entry.is_cons() {
+                return None;
+            }
+            Some((
+                entry.cons_car().as_utf8_str()?.to_owned(),
+                entry.cons_cdr().as_utf8_str()?.to_owned(),
+            ))
+        })
+        .collect()
 }
 
 fn image_mask_rgb16(value: Value) -> Option<[u16; 3]> {
@@ -894,11 +961,8 @@ pub(crate) fn builtin_image_size_in_context(eval: &mut Context, args: Vec<Value>
             vec![Value::string("Window system frame should be used")],
         ));
     };
-    let Some(request) = image_resolve_request_from_spec(
-        &args[0],
-        environment,
-        eval.face_table().default_face_colors(),
-    ) else {
+    let Some(request) = image_resolve_request_in_frame(&args[0], environment, eval, args.get(2))
+    else {
         return Err(signal(
             "error",
             vec![Value::string("Invalid image specification")],
@@ -1043,11 +1107,8 @@ pub(crate) fn builtin_image_mask_p_in_context(eval: &mut Context, args: Vec<Valu
             vec![Value::string("Window system frame should be used")],
         ));
     };
-    let Some(request) = image_resolve_request_from_spec(
-        &args[0],
-        environment,
-        eval.face_table().default_face_colors(),
-    ) else {
+    let Some(request) = image_resolve_request_in_frame(&args[0], environment, eval, args.get(1))
+    else {
         return Err(signal(
             "error",
             vec![Value::string("Invalid image specification")],
@@ -1213,11 +1274,11 @@ pub(crate) fn builtin_image_flush_in_context(eval: &mut Context, args: Vec<Value
     }
 
     let frame_for_env = if all_frames { None } else { args.get(1) };
-    let default_colors = eval.face_table().default_face_colors();
-    let Some(request) = image_resolve_request_from_spec(
+    let Some(request) = image_resolve_request_in_frame(
         &args[0],
         image_scale_environment_for_frame(eval, frame_for_env).unwrap_or_default(),
-        default_colors,
+        eval,
+        frame_for_env,
     ) else {
         return Err(signal(
             "error",
@@ -1487,11 +1548,8 @@ pub(crate) fn builtin_image_metadata_in_context(
             vec![Value::string("Window system frame should be used")],
         )
     })?;
-    let Some(request) = image_resolve_request_from_spec(
-        &args[0],
-        environment,
-        eval.face_table().default_face_colors(),
-    ) else {
+    let Some(request) = image_resolve_request_in_frame(&args[0], environment, eval, args.get(1))
+    else {
         return Ok(Value::NIL);
     };
     let display_host = eval.display_host.as_ref().ok_or_else(|| {
@@ -1534,11 +1592,8 @@ pub(crate) fn builtin_neomacs_image_extent_in_context(
             vec![Value::string("Window system frame should be used")],
         )
     })?;
-    let Some(request) = image_resolve_request_from_spec(
-        &args[0],
-        environment,
-        eval.face_table().default_face_colors(),
-    ) else {
+    let Some(request) = image_resolve_request_in_frame(&args[0], environment, eval, args.get(1))
+    else {
         return Ok(Value::NIL);
     };
     let display_host = eval.display_host.as_ref().expect("checked host");

@@ -1923,3 +1923,91 @@ fn image_request_uses_the_default_face_colors_like_gnu() {
     assert_eq!(request.colors.foreground().rgb24(), 0x00112233);
     assert_eq!(request.colors.background().rgb24(), 0x00445566);
 }
+
+#[test]
+fn xpm_symbol_alist_is_copied_and_invalid_alists_are_rejected() {
+    let mut eval = Context::new();
+    eval.setup_thread_locals();
+    let symbols = Value::list(vec![
+        Value::cons(Value::string("accent"), Value::string("gray60")),
+        Value::cons(Value::string("accent"), Value::string("None")),
+    ]);
+    let make_spec = |symbols| {
+        Value::list(vec![
+            Value::symbol("image"),
+            Value::keyword("type"),
+            Value::symbol("xpm"),
+            Value::keyword("data"),
+            Value::string("! XPM2\n1 1 1 1\nx s accent c red\nx\n"),
+            Value::keyword("color-symbols"),
+            symbols,
+            Value::keyword("foreground"),
+            Value::string("rgb:f/0/0"),
+        ])
+    };
+    let request = image_resolve_request_from_spec(
+        &make_spec(symbols),
+        ImageScaleEnvironment::default(),
+        (0x123456, 0xffffff),
+    )
+    .unwrap();
+    assert_eq!(
+        request.colors.xpm_color_symbols(),
+        &[
+            ("accent".to_owned(), "gray60".to_owned()),
+            ("accent".to_owned(), "None".to_owned()),
+        ]
+    );
+    assert_eq!(request.colors.foreground().rgb24(), 0xff0000);
+    assert_eq!(request.colors.frame_foreground().rgb24(), 0x123456);
+    for invalid in [
+        Value::fixnum(5),
+        Value::list(vec![Value::string("accent")]),
+        Value::list(vec![Value::cons(Value::string("accent"), Value::fixnum(1))]),
+    ] {
+        assert!(
+            image_resolve_request_from_spec(
+                &make_spec(invalid),
+                ImageScaleEnvironment::default(),
+                (0, 0)
+            )
+            .is_none()
+        );
+    }
+}
+
+#[test]
+fn xpm_builtin_request_uses_frame_parameter_not_image_foreground() {
+    let mut eval = Context::new();
+    eval.setup_thread_locals();
+    let frame_id = crate::emacs_core::window_cmds::ensure_selected_frame_id(&mut eval);
+    eval.frames
+        .get_mut(frame_id)
+        .unwrap()
+        .set_parameter(Value::symbol("foreground-color"), Value::string("#123456"));
+    let spec = Value::list(vec![
+        Value::symbol("image"),
+        Value::keyword("type"),
+        Value::symbol("xpm"),
+        Value::keyword("file"),
+        Value::string("/tmp/icon.xpm"),
+        Value::keyword("foreground"),
+        Value::string("red"),
+    ]);
+    let first =
+        image_resolve_request_in_frame(&spec, ImageScaleEnvironment::default(), &eval, None)
+            .unwrap();
+    assert_eq!(first.colors.foreground().rgb24(), 0xff0000);
+    assert_eq!(first.colors.frame_foreground().rgb24(), 0x123456);
+    eval.frames
+        .get_mut(frame_id)
+        .unwrap()
+        .set_parameter(Value::symbol("foreground-color"), Value::string("#654321"));
+    let second =
+        image_resolve_request_in_frame(&spec, ImageScaleEnvironment::default(), &eval, None)
+            .unwrap();
+    assert_ne!(
+        first, second,
+        "frame color changes must not reuse the old decoded image"
+    );
+}

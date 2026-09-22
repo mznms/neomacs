@@ -5,18 +5,18 @@
 use std::collections::HashMap;
 use std::path::Path;
 
-use neomacs_display_protocol::color_spec::resolve_color;
+use neomacs_display_protocol::{ImageColorContext, color_spec::resolve_color};
 
 /// Decode XPM image from in-memory data, returning (width, height, rgba_pixels).
-pub fn decode_xpm_data(data: &[u8]) -> Option<(u32, u32, Vec<u8>)> {
+pub fn decode_xpm_data(data: &[u8], context: &ImageColorContext) -> Option<(u32, u32, Vec<u8>)> {
     let strings = extract_strings(data)?;
-    decode_from_strings(&strings)
+    decode_from_strings(&strings, context)
 }
 
 /// Decode XPM image from a file path.
-pub fn decode_xpm_file(path: &Path) -> Option<(u32, u32, Vec<u8>)> {
+pub fn decode_xpm_file(path: &Path, context: &ImageColorContext) -> Option<(u32, u32, Vec<u8>)> {
     let data = std::fs::read(path).ok()?;
-    decode_xpm_data(&data)
+    decode_xpm_data(&data, context)
 }
 
 /// Query XPM dimensions without full decode (header only).
@@ -119,7 +119,10 @@ fn trim_bytes(b: &[u8]) -> &[u8] {
     &b[start..end]
 }
 
-fn decode_from_strings(strings: &[&[u8]]) -> Option<(u32, u32, Vec<u8>)> {
+fn decode_from_strings(
+    strings: &[&[u8]],
+    context: &ImageColorContext,
+) -> Option<(u32, u32, Vec<u8>)> {
     if strings.is_empty() {
         return None;
     }
@@ -146,7 +149,7 @@ fn decode_from_strings(strings: &[&[u8]]) -> Option<(u32, u32, Vec<u8>)> {
         }
         let key = line[..cpp].to_vec();
         let rest = &line[cpp..];
-        let color = parse_color_def(rest)?;
+        let color = parse_color_def(rest, context)?;
         colors.insert(key, color);
     }
 
@@ -155,6 +158,7 @@ fn decode_from_strings(strings: &[&[u8]]) -> Option<(u32, u32, Vec<u8>)> {
     let h = header.height as usize;
     let mut rgba = vec![0u8; w * h * 4];
 
+    let fallback = context.frame_foreground().rgba8();
     for y in 0..h {
         let row = strings[1 + header.ncolors as usize + y];
         for x in 0..w {
@@ -170,7 +174,7 @@ fn decode_from_strings(strings: &[&[u8]]) -> Option<(u32, u32, Vec<u8>)> {
                 return None;
             }
             let pixel_key = &row[start..end];
-            let color = colors.get(pixel_key).unwrap_or(&[0, 0, 0, 255]);
+            let color = colors.get(pixel_key).unwrap_or(&fallback);
             let idx = (y * w + x) * 4;
             rgba[idx] = color[0];
             rgba[idx + 1] = color[1];
@@ -187,41 +191,46 @@ fn decode_from_strings(strings: &[&[u8]]) -> Option<(u32, u32, Vec<u8>)> {
 
 /// Parse a color definition from the rest of a color line (after the pixel key).
 /// Looks for "c <color>" (visual color key). Falls back to other keys.
-fn parse_color_def(rest: &[u8]) -> Option<[u8; 4]> {
+fn parse_color_def(rest: &[u8], context: &ImageColorContext) -> Option<[u8; 4]> {
     let text = std::str::from_utf8(rest).ok()?;
     let tokens: Vec<&str> = text.split_whitespace().collect();
 
-    // Color values can contain spaces. Each field extends to the next key,
-    // but must consume at least one value token (even a symbolic name "c").
-    // Prefer color, grayscale, four-level grayscale, then monochrome.
+    // Each value extends to the next key, consuming at least one token so
+    // symbolic names such as "c" remain valid. Prefer c, g, g4, then m.
     let keys = ["c", "g", "g4", "m", "s"];
     let mut best = None;
+    let mut symbol = None;
     let mut index = 0;
     while index + 1 < tokens.len() {
-        let priority = keys
-            .iter()
-            .position(|key| tokens[index].eq_ignore_ascii_case(key));
+        let priority = keys.iter().position(|key| tokens[index] == *key);
         let start = index + 1;
         let end = (start + 1..tokens.len())
-            .find(|&i| keys.iter().any(|key| tokens[i].eq_ignore_ascii_case(key)))
+            .find(|&i| keys.contains(&tokens[i]))
             .unwrap_or(tokens.len());
         if let Some(priority @ 0..=3) = priority
             && best.as_ref().is_none_or(|(rank, _)| priority < *rank)
         {
             best = Some((priority, tokens[start..end].join(" ")));
+        } else if priority == Some(4) {
+            symbol = Some(tokens[start..end].join(" "));
         }
         index = end;
     }
-    if let Some((_, color)) = best {
-        return Some(parse_color_value(&color).unwrap_or([0, 0, 0, 255]));
-    }
 
-    // Fallback: if only one token after whitespace, treat as color
-    if tokens.len() == 1 {
-        return Some(parse_color_value(tokens[0]).unwrap_or([0, 0, 0, 255]));
-    }
-
-    Some([0, 0, 0, 255]) // default black
+    // GNU uses assoc (case-sensitive, first matching entry). An invalid
+    // override falls back to the selected visual color, including None.
+    let replacement = symbol.as_ref().and_then(|symbol| {
+        context
+            .xpm_color_symbols()
+            .iter()
+            .find(|(name, _)| name == symbol)
+            .and_then(|(_, color)| parse_color_value(color))
+    });
+    Some(
+        replacement
+            .or_else(|| best.and_then(|(_, color)| parse_color_value(&color)))
+            .unwrap_or_else(|| context.frame_foreground().rgba8()),
+    )
 }
 
 /// Transparency is XPM syntax; all other colors use the face color resolver.

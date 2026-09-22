@@ -35,6 +35,54 @@ static char *icon[] = {
 }
 
 #[test]
+fn xpm_file_and_data_decoding_keep_symbols_frame_color_and_mask() {
+    let data = b"! XPM2\n3 1 3 1\na s accent c red\nb c missing\nc c None\nabc\n";
+    let colors = ImageColorContext::from_pixels(0xff0000, 0xffffff)
+        .with_frame_foreground(0x123456)
+        .with_xpm_color_symbols(vec![("accent".into(), "gray60".into())]);
+    let cache = ImageSequenceCache::new();
+    let sequence = ImageSequenceId::new(1).unwrap();
+    let from_data = ImageCache::decode_data(
+        data,
+        ImageSizeSpec::default(),
+        ImageRotation::None,
+        colors.clone(),
+        ImageRealization::default(),
+        ImageMaskPolicy::Preserve,
+        ImageFrameIndex::default(),
+        crate::svg::SvgResourceContext::Isolated,
+        &cache,
+        sequence,
+    )
+    .unwrap();
+    let path = std::env::temp_dir().join(format!("neomacs-xpm-colors-{}.xpm", std::process::id()));
+    std::fs::write(&path, data).unwrap();
+    let from_file = ImageCache::decode_file(
+        path.to_str().unwrap(),
+        ImageSizeSpec::default(),
+        ImageRotation::None,
+        colors,
+        ImageRealization::default(),
+        ImageMaskPolicy::Preserve,
+        ImageFrameIndex::default(),
+        &cache,
+        sequence,
+    )
+    .unwrap();
+    std::fs::remove_file(path).unwrap();
+    for pixels in [from_data, from_file] {
+        let image = ImageCache::decoded_image(
+            ImageLoadToken::new(ImageId::new(1), ImageLoadAttempt::new(1).unwrap()),
+            pixels,
+        );
+        assert_eq!(
+            image.data,
+            [153, 153, 153, 255, 18, 52, 86, 255, 0, 0, 0, 0]
+        );
+    }
+}
+
+#[test]
 fn toolbar_png_keeps_intrinsic_colors_and_alpha() {
     let pixels = vec![0x12, 0x34, 0x56, 255, 0, 0, 255, 128, 0, 0, 0, 0];
     let data = png_bytes(pixels.clone(), 3, 1);

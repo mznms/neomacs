@@ -766,7 +766,7 @@ impl ImageCache {
             return None;
         }
         // Fallback: try XPM
-        if let Some(result) = crate::xpm::decode_xpm_file(Path::new(path)) {
+        if let Some(result) = crate::xpm::decode_xpm_file(Path::new(path), &colors) {
             return NativePixels::from_raster_tuple(result).realize_bitmap(
                 size,
                 rotation,
@@ -818,7 +818,7 @@ impl ImageCache {
             return None;
         }
         // Fallback: try XPM
-        if let Some(result) = crate::xpm::decode_xpm_data(data) {
+        if let Some(result) = crate::xpm::decode_xpm_data(data, &colors) {
             return NativePixels::from_raster_tuple(result).realize_bitmap(
                 size,
                 rotation,

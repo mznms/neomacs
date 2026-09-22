@@ -155,6 +155,7 @@ pub struct PixelCalcImageInputs {
     pub scale: neovm_core::emacs_core::image_catalog::ImageScaleEnvironment,
     pub dimensions: crate::display_spec::DisplayImageDimensionEnvironment,
     pub default_fg: u32,
+    pub frame_foreground: u32,
     pub default_bg: u32,
 }
 
@@ -177,7 +178,10 @@ fn collect_space_image_operands(
         )
         && let Some(catalog) = inputs.catalog.as_ref()
     {
-        let request = layout.into_resolve_request(inputs.scale, inputs.dimensions);
+        let mut request = layout.into_resolve_request(inputs.scale, inputs.dimensions);
+        request.colors = request
+            .colors
+            .with_frame_foreground(inputs.frame_foreground);
         let placement = catalog.lookup(request).placement();
         sizes.insert(
             *value,

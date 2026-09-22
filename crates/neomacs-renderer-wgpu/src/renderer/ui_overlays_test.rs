@@ -37,7 +37,7 @@ fn toolbar_texture_lookup_is_scoped_by_icon_size() {
         toolbar_texture_id(
             &textures,
             &image,
-            ToolBarIconStyle::from_chrome_face(24, Color::WHITE, Color::BLACK),
+            &ToolBarIconStyle::from_chrome_face(24, Color::WHITE, Color::BLACK),
             DeviceScale::ONE
         ),
         Some(ImageId::new(7))
@@ -46,7 +46,7 @@ fn toolbar_texture_lookup_is_scoped_by_icon_size() {
         toolbar_texture_id(
             &textures,
             &image,
-            ToolBarIconStyle::from_chrome_face(48, Color::WHITE, Color::BLACK),
+            &ToolBarIconStyle::from_chrome_face(48, Color::WHITE, Color::BLACK),
             DeviceScale::ONE
         ),
         Some(ImageId::new(9))
@@ -55,7 +55,7 @@ fn toolbar_texture_lookup_is_scoped_by_icon_size() {
         toolbar_texture_id(
             &textures,
             &image,
-            ToolBarIconStyle::from_chrome_face(32, Color::WHITE, Color::BLACK),
+            &ToolBarIconStyle::from_chrome_face(32, Color::WHITE, Color::BLACK),
             DeviceScale::ONE
         ),
         None
@@ -64,7 +64,7 @@ fn toolbar_texture_lookup_is_scoped_by_icon_size() {
         toolbar_texture_id(
             &textures,
             &image,
-            ToolBarIconStyle::from_chrome_face(24, Color::BLACK, Color::BLACK),
+            &ToolBarIconStyle::from_chrome_face(24, Color::BLACK, Color::BLACK),
             DeviceScale::ONE
         ),
         None
@@ -73,7 +73,7 @@ fn toolbar_texture_lookup_is_scoped_by_icon_size() {
         toolbar_texture_id(
             &textures,
             &image,
-            ToolBarIconStyle::from_chrome_face(24, Color::WHITE, Color::WHITE),
+            &ToolBarIconStyle::from_chrome_face(24, Color::WHITE, Color::WHITE),
             DeviceScale::ONE
         ),
         None
@@ -82,7 +82,7 @@ fn toolbar_texture_lookup_is_scoped_by_icon_size() {
         toolbar_texture_id(
             &textures,
             &image,
-            ToolBarIconStyle::from_chrome_face(24, Color::WHITE, Color::BLACK),
+            &ToolBarIconStyle::from_chrome_face(24, Color::WHITE, Color::BLACK),
             DeviceScale::new(1.5).unwrap()
         ),
         None

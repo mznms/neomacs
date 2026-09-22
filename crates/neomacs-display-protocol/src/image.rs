@@ -285,12 +285,16 @@ impl ImageRgb {
 /// This is one value throughout layout, the evaluator-owned image catalog,
 /// the render command, and the decoder.  Consequently a decoder cannot accept
 /// an unlabelled `(u32, u32)` pair or mistake valid black for a missing color.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ImageColorContext {
     foreground: ImageRgb,
     background: ImageRgb,
     #[serde(default)]
     background_policy: ImageBackgroundPolicy,
+    #[serde(default)]
+    frame_foreground: Option<ImageRgb>,
+    #[serde(default)]
+    xpm_color_symbols: Vec<(String, String)>,
 }
 
 /// Editor images use GNU's face-colored wrapper; chrome icons preserve alpha
@@ -320,16 +324,18 @@ impl ImageColorContext {
             foreground: ImageRgb::from_pixel(foreground),
             background: ImageRgb::from_pixel(background),
             background_policy: ImageBackgroundPolicy::FaceColor,
+            frame_foreground: None,
+            xpm_color_symbols: Vec::new(),
         }
     }
 
     #[must_use]
-    pub const fn foreground(self) -> ImageRgb {
+    pub const fn foreground(&self) -> ImageRgb {
         self.foreground
     }
 
     #[must_use]
-    pub const fn background(self) -> ImageRgb {
+    pub const fn background(&self) -> ImageRgb {
         self.background
     }
 
@@ -339,15 +345,36 @@ impl ImageColorContext {
         self
     }
 
-    pub const fn background_policy(self) -> ImageBackgroundPolicy {
+    pub const fn background_policy(&self) -> ImageBackgroundPolicy {
         self.background_policy
     }
 
-    pub const fn background_rgba8(self) -> [u8; 4] {
+    pub const fn background_rgba8(&self) -> [u8; 4] {
         match self.background_policy {
             ImageBackgroundPolicy::FaceColor => self.background.rgba8(),
             ImageBackgroundPolicy::Transparent => [0; 4],
         }
+    }
+    /// GNU's internal XPM loader substitutes the frame foreground for an
+    /// unresolved palette entry, independently of the image's face colors.
+    pub fn with_frame_foreground(mut self, foreground: u32) -> Self {
+        let foreground = ImageRgb::from_pixel(foreground);
+        self.frame_foreground = (foreground != self.foreground).then_some(foreground);
+        self
+    }
+
+    pub fn frame_foreground(&self) -> ImageRgb {
+        self.frame_foreground.unwrap_or(self.foreground)
+    }
+
+    /// Owned strings allow the asynchronous decoder to outlive Lisp storage.
+    pub fn with_xpm_color_symbols(mut self, symbols: Vec<(String, String)>) -> Self {
+        self.xpm_color_symbols = symbols;
+        self
+    }
+
+    pub fn xpm_color_symbols(&self) -> &[(String, String)] {
+        &self.xpm_color_symbols
     }
 }
 

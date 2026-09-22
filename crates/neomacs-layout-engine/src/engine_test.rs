@@ -1690,6 +1690,7 @@ fn test_window_params() -> WindowParams {
         scroll_margin: 0,
         tab_stop_list: vec![],
         default_fg: 0xFFFFFF,
+        frame_foreground: 0xFFFFFF,
         default_bg: 0x000000,
         char_width: 8.0,
         char_height: 16.0,

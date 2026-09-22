@@ -179,6 +179,7 @@ impl WindowParams {
                 self.char_width,
             ),
             default_fg: self.default_fg,
+            frame_foreground: self.frame_foreground,
             default_bg: self.default_bg,
         }
     }
@@ -311,6 +312,8 @@ pub struct WindowParams {
 
     /// Default face foreground/background for this window
     pub default_fg: u32,
+    /// Frame foreground used by GNU XPM for unresolved palette entries.
+    pub frame_foreground: u32,
     pub default_bg: u32,
 
     /// Character cell dimensions

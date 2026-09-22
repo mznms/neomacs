@@ -1104,6 +1104,7 @@ impl<'metrics> DisplayRowRenderer<'metrics> {
                         char_width,
                     ),
                     default_fg: base_face.fg,
+                    frame_foreground: context.face_resolver.frame_foreground(),
                     default_bg: base_face.bg,
                 });
         let mut row_layout = geometry.to_layout(

@@ -40,7 +40,7 @@ pub enum SvgResourceContext {
 /// Emacs face.  The enum makes it impossible for the paint path to
 /// accidentally use the dimension-query defaults, which resolve an unbound
 /// SVG `currentColor` to black.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 enum SvgColorMode {
     Intrinsic,
     Face(ImageColorContext),

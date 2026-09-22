@@ -9,7 +9,7 @@ use crate::{
 
 /// Appearance published by the toolbar face. Hover/pressed/disabled state is
 /// composited at draw time, never baked into the decoded icon.
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct ToolBarIconStyle {
     size: NonZeroU32,
     colors: ImageColorContext,
@@ -29,10 +29,10 @@ impl ToolBarIconStyle {
         }
     }
 
-    pub fn realize(self, source: ToolBarImageSource, scale: DeviceScale) -> ToolBarIconKey {
+    pub fn realize(&self, source: ToolBarImageSource, scale: DeviceScale) -> ToolBarIconKey {
         ToolBarIconKey {
             source,
-            style: self,
+            style: self.clone(),
             realization: ImageRealization::with_device_scale(1.0, scale.get()),
         }
     }
@@ -53,7 +53,7 @@ impl ToolBarIconKey {
         &self.source
     }
     pub fn colors(&self) -> ImageColorContext {
-        self.style.colors
+        self.style.colors.clone()
     }
     pub fn size_spec(&self) -> ImageSizeSpec {
         let limit = AxisSize::AtMost(self.style.size.get());

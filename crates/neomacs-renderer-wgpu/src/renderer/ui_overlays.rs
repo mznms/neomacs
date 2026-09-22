@@ -32,7 +32,7 @@ pub(super) fn placed_chrome_item_bounds(
 pub(super) fn toolbar_texture_id(
     icon_textures: &HashMap<ToolBarIconKey, ImageId>,
     image: &ToolBarImageSource,
-    style: ToolBarIconStyle,
+    style: &ToolBarIconStyle,
     scale: DeviceScale,
 ) -> Option<ImageId> {
     icon_textures
@@ -2012,7 +2012,7 @@ impl WgpuRenderer {
                 let tint = [1.0, 1.0, 1.0, alpha];
                 if let Some(image) = item.image.as_ref()
                     && let Some(image_id) =
-                        toolbar_texture_id(icon_textures, image, icon_style, device_scale)
+                        toolbar_texture_id(icon_textures, image, &icon_style, device_scale)
                     && let Some(cached) = self.caches.image.get(image_id)
                 {
                     let bg = cached.bind_group.clone();
@@ -2269,7 +2269,7 @@ impl WgpuRenderer {
                 let tint = [1.0, 1.0, 1.0, alpha];
                 if let Some(image) = item.image.as_ref()
                     && let Some(image_id) =
-                        toolbar_texture_id(icon_textures, image, icon_style, device_scale)
+                        toolbar_texture_id(icon_textures, image, &icon_style, device_scale)
                     && let Some(cached) = self.caches.image.get(image_id)
                 {
                     let bg = cached.bind_group.clone();

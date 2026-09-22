@@ -10,8 +10,8 @@ use neovm_core::emacs_core::eval::{
     ShaderSurfaceLanguage, SurfaceResolveRequest, WebKitResolveRequest, WebKitResolveSource,
 };
 use neovm_core::emacs_core::image::{
-    ImageSpecKey, image_frame_index_from_lisp, image_mask_policy_from_items,
-    image_resolve_source_from_items,
+    ImageSpecKey, image_color_context_from_items, image_frame_index_from_lisp,
+    image_mask_policy_from_items, image_resolve_source_from_items,
 };
 use neovm_core::emacs_core::image_catalog::{
     AxisSize, ImageColorContext, ImageFrameIndex, ImageMaskPolicy, ImageResolveRequest,
@@ -20,7 +20,6 @@ use neovm_core::emacs_core::image_catalog::{
 };
 use neovm_core::emacs_core::value::{ValueKind, list_to_vec};
 use neovm_core::emacs_core::video::{VideoDisplayReference, parse_video_display_reference};
-use neovm_core::face::Color as LispColor;
 use strum::{EnumString, IntoStaticStr};
 
 use neomacs_display_protocol::{ImageSourceRect, WebViewId, XwidgetId};
@@ -490,8 +489,6 @@ pub(crate) fn parse_display_image_layout(
     let mut scale = ImageScalePolicy::Unspecified;
     let mut ascent = DisplayImageAscentPolicy::default();
     let mut margin = DisplayImageMargin::default();
-    let mut fg_color = default_fg;
-    let mut bg_color = default_bg;
 
     let mut i = 1usize;
     while i + 1 < items.len() {
@@ -528,14 +525,6 @@ pub(crate) fn parse_display_image_layout(
             Some(ImageSpecKey::Margin) => {
                 margin = parse_image_margin(value).unwrap_or(margin);
             }
-            Some(ImageSpecKey::Foreground) => {
-                fg_color = parse_image_color_pixel(value).unwrap_or(fg_color);
-            }
-            Some(ImageSpecKey::Background) => {
-                if let Some(pixel) = parse_image_color_pixel(value) {
-                    bg_color = pixel;
-                }
-            }
             _ => {}
         }
         i += 2;
@@ -550,7 +539,7 @@ pub(crate) fn parse_display_image_layout(
                 height: DisplayImageAxisSize::resolve_precedence(height, max_height),
             },
             rotation,
-            colors: ImageColorContext::from_pixels(fg_color, bg_color),
+            colors: image_color_context_from_items(&items, default_fg, default_bg)?,
             mask: image_mask_policy_from_items(&items),
             frame,
         },
@@ -913,13 +902,6 @@ fn parse_image_ascent(value: Value) -> Option<DisplayImageAscentPolicy> {
         .then_some(DisplayImageAscentPolicy::Percent(percent))
 }
 
-fn parse_image_color_pixel(value: Value) -> Option<u32> {
-    let color = value
-        .as_lisp_string()
-        .and_then(|name| LispColor::parse(name.as_utf8_str()?))?;
-    Some(((color.r as u32) << 16) | ((color.g as u32) << 8) | color.b as u32)
-}
-
 fn parse_boolish(value: Value) -> bool {
     !value.is_nil()
 }
@@ -947,6 +929,33 @@ pub(crate) fn display_space_positive_number(value: Value) -> Option<f32> {
 mod tests {
     use super::*;
     use neovm_core::emacs_core::image_catalog::{ImageDataSource, ImageResolveSource};
+
+    #[test]
+    fn image_colors_keep_symbol_overrides_separate_from_frame_fallback() {
+        let mut eval = neovm_core::emacs_core::Context::new();
+        eval.setup_thread_locals();
+        let spec = Value::list(vec![
+            Value::symbol("image"),
+            Value::keyword("type"),
+            Value::symbol("xpm"),
+            Value::keyword("file"),
+            Value::string("/tmp/icon.xpm"),
+            Value::keyword("foreground"),
+            Value::string("rgb:f/0/0"),
+            Value::keyword("color-symbols"),
+            Value::list(vec![Value::cons(
+                Value::string("accent"),
+                Value::string("None"),
+            )]),
+        ]);
+        let layout = parse_display_image_layout(&spec, 0x123456, 0xffffff).unwrap();
+        assert_eq!(layout.request.colors.foreground().rgb24(), 0xff0000);
+        assert_eq!(layout.request.colors.frame_foreground().rgb24(), 0x123456);
+        assert_eq!(
+            layout.request.colors.xpm_color_symbols(),
+            &[("accent".to_owned(), "None".to_owned())]
+        );
+    }
 
     fn image_spec(ascent: Option<Value>) -> Value {
         let mut items = vec![
