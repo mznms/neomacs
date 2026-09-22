@@ -2,6 +2,7 @@
 # This file is not a part of GNU Emacs.  It is from xc/programs/rgb/rgb.txt
 # of the X11R6 X Consortium distribution, and is included here to support the
 # mapping of color names to RGB values on Windows NT and Windows 95.
+# Additional entries are documented at the end of this file.
 #
 # The following copyright notice applies to this file, and was taken from
 # xc/RELNOTES.TXT of the same distribution.
@@ -786,3 +787,17 @@
 139   0   0		DarkRed
 144 238 144		light green
 144 238 144		LightGreen
+
+# Additional names from X.Org's rgb.txt, absent from the X11R6 table above.
+# https://cgit.freedesktop.org/xorg/app/rgb/tree/rgb.txt
+  0 255 255		aqua
+255   0 255		fuchsia
+128 128   0		olive
+  0 128 128		teal
+192 192 192		silver
+220  20  60		crimson
+ 75   0 130		indigo
+  0 255   0		lime
+
+# Neomacs compatibility alias, historically accepted by the XPM decoder.
+189 183 107		darkyellow

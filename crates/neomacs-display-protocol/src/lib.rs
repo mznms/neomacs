@@ -44,6 +44,7 @@ pub mod ui_types;
 pub mod visual_config;
 pub mod window_animation;
 pub mod window_chrome;
+pub mod x11_colors;
 pub mod xterm_palette;
 pub mod xwidget_extent;
 pub use glyph_matrix::*;

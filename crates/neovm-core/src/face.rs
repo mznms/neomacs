@@ -20,8 +20,7 @@ use strum::{EnumString, IntoStaticStr};
 mod remapping;
 pub use remapping::{FaceRemapEntry, FaceRemapping};
 
-// X11 color table generated at compile time from etc/rgb.txt
-include!(concat!(env!("OUT_DIR"), "/x11_colors.rs"));
+pub use neomacs_display_protocol::x11_colors::x11_color_lookup;
 
 /// Identity of a GNU Lisp face in a frame's lface table.
 ///
